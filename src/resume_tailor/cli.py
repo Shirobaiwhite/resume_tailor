@@ -5,7 +5,7 @@ from typing import Optional  # noqa: F401  (used by Optional[ProviderConfig])
 
 from .interactive import MAX_JDS, _yn, run_interactive
 from .jd import fetch_jd
-from .latex import compile_tex, find_latex_compiler
+from .latex import compile_tex, find_latex_compiler, offer_to_install_tectonic
 from .llm import DEFAULT_MODELS, KNOWN_BASE_URLS, ProviderConfig, build_client
 from .resume import load_resume
 from .storage import (
@@ -307,7 +307,11 @@ def main() -> int:
     if compiler:
         print(f"Found LaTeX compiler: {compiler}")
     elif not args.no_pdf:
-        print("No LaTeX compiler found on PATH; emitting .tex only.")
+        # Offer to auto-install (interactive mode + macOS only).
+        if sys.stdin.isatty():
+            compiler = offer_to_install_tectonic()
+        if not compiler:
+            print("No LaTeX compiler found on PATH; emitting .tex only.")
 
     args.out.mkdir(parents=True, exist_ok=True)
 

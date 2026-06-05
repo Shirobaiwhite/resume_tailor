@@ -68,11 +68,22 @@ Requires Python 3.9+.
 
 ### Optional: LaTeX → PDF
 
-To compile to PDF locally:
+The CLI auto-detects `tectonic`, `xelatex`, or `pdflatex` on your `PATH` and compiles `resume.tex` to `resume.pdf` automatically. The `.tex` is kept regardless.
+
+**Easiest option — Tectonic** (10MB, self-contained, fetches packages on demand):
+
+- macOS: `brew install tectonic`
+- Linux: see [tectonic-typesetting.github.io/install](https://tectonic-typesetting.github.io/en-US/install.html)
+
+If you're on macOS and don't have any LaTeX compiler, the CLI will offer to `brew install tectonic` for you on first run.
+
+**Full TeX Live alternatives:**
 
 - macOS (small): `brew install --cask basictex` then restart your shell
 - macOS (full): `brew install --cask mactex`
 - Linux: `sudo apt install texlive-latex-recommended texlive-fonts-recommended`
+
+Without any compiler installed, you still get `.tex` files — paste into [Overleaf](https://overleaf.com) to render.
 
 ## Choose a backend
 
