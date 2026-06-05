@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "resume-tailor"
+version = "0.1.0"
+description = "Tailor a resume to a list of job descriptions using Claude."
+requires-python = ">=3.9"
+dependencies = [
+    "anthropic>=0.92.0",
+    "openai>=1.50.0",
+    "pypdf>=5.0.0",
+    "requests>=2.31.0",
+    "beautifulsoup4>=4.12.0",
+]
+
+[project.scripts]
+resume-tailor = "resume_tailor.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

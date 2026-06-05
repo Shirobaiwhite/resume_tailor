@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Entry point for resume-tailor. Bootstraps a venv on first run, then dispatches
+# to the CLI. With no arguments, the CLI walks you through it interactively.
+set -e
+cd "$(dirname "$0")"
+
+if [ ! -x ".venv/bin/resume-tailor" ]; then
+    echo "First-time setup (~30s)..."
+    python3 -m venv .venv
+    .venv/bin/pip install --upgrade pip >/dev/null 2>&1
+    .venv/bin/pip install -e . >/dev/null 2>&1
+    echo "Done."
+    echo
+fi
+
+exec .venv/bin/resume-tailor "$@"
