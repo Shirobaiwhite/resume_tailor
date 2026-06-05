@@ -5,8 +5,10 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "resume-tailor"
 version = "0.1.0"
-description = "Tailor a resume to a list of job descriptions using Claude."
+description = "Tailor a resume to a list of job descriptions using any LLM (Claude, GPT, Gemini, Ollama, ...)."
 requires-python = ">=3.9"
+license = "MIT"
+authors = [{ name = "Sean Chen" }]
 dependencies = [
     "anthropic>=0.92.0",
     "openai>=1.50.0",
