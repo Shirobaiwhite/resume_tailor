@@ -4,8 +4,11 @@ from pathlib import Path
 from typing import Optional  # noqa: F401  (used by Optional[ProviderConfig])
 
 from .interactive import MAX_JDS, _yn, run_interactive
+import json
+
 from .jd import fetch_jd
 from .latex import compile_tex, find_latex_compiler, offer_to_install_tectonic
+from .score import MatchScore, score_match
 from .llm import DEFAULT_MODELS, KNOWN_BASE_URLS, ProviderConfig, build_client
 from .resume import load_resume
 from .storage import (
@@ -17,6 +20,25 @@ from .storage import (
     save_resume,
 )
 from .tailor import tailor_resume
+
+
+def _print_match(match: MatchScore) -> None:
+    """Pretty-print a match score with a unicode bar + strengths/gaps."""
+    bar_filled = round(match.score / 5)  # 0-100 → 0-20 cells
+    bar = "█" * bar_filled + "░" * (20 - bar_filled)
+    print()
+    print(f"  Match score: {match.score}/100 — {match.verdict()}")
+    print(f"  [{bar}]")
+    if match.reason:
+        print(f"  Why: {match.reason}")
+    if match.strengths:
+        print("  Strengths:")
+        for s in match.strengths:
+            print(f"    + {s}")
+    if match.gaps:
+        print("  Gaps:")
+        for g in match.gaps:
+            print(f"    - {g}")
 
 
 def _make_jd_confirmer():
@@ -318,6 +340,7 @@ def main() -> int:
     confirm_cb = _make_jd_confirmer() if sys.stdin.isatty() else None
 
     succeeded = 0
+    results: list = []  # for the end-of-run summary
     for i, url in enumerate(jd_urls, 1):
         print(f"\n[{i}/{len(jd_urls)}] {url}")
         jd = fetch_jd(url, confirm=confirm_cb, llm_client=client)
@@ -326,10 +349,35 @@ def main() -> int:
             continue
         print(f"  JD: {len(jd.text)} chars")
 
+        # Match-score before tailoring so the user knows what they're getting.
+        match: Optional[MatchScore] = None
+        try:
+            print("  Scoring resume against JD...")
+            match = score_match(client, resume_text, jd.text, jd.url)
+            _print_match(match)
+        except Exception as e:
+            print(f"  (couldn't compute match score: {e})", file=sys.stderr)
+
+        # On very poor matches, give the user an out before paying for tailoring.
+        if (
+            match is not None
+            and match.score < 40
+            and sys.stdin.isatty()
+        ):
+            print()
+            if not _yn(
+                f"  Match is only {match.score}/100. Tailor anyway?",
+                default=False,
+            ):
+                print("  Skipped.")
+                results.append((jd.slug, match, "skipped"))
+                continue
+
         try:
             tex = tailor_resume(client, resume_text, jd.text, jd.url)
         except Exception as e:
             print(f"  failed: {e}", file=sys.stderr)
+            results.append((jd.slug, match, "failed"))
             continue
 
         job_dir = args.out / jd.slug
@@ -339,14 +387,28 @@ def main() -> int:
         tex_path.write_text(tex, encoding="utf-8")
         print(f"  wrote {tex_path}")
 
+        if match is not None:
+            (job_dir / "match.json").write_text(
+                json.dumps(match.to_dict(), indent=2), encoding="utf-8"
+            )
+
         if compiler:
             pdf_path = compile_tex(tex_path, compiler)
             if pdf_path:
                 print(f"  wrote {pdf_path}")
 
         succeeded += 1
+        results.append((jd.slug, match, "ok"))
 
     print(f"\nDone. {succeeded}/{len(jd_urls)} resumes generated in {args.out}/")
+    if any(m is not None for _, m, _ in results):
+        print("\nMatch summary:")
+        for slug, m, status in results:
+            score_str = f"{m.score:>3}/100" if m else "  -/100"
+            verdict = m.verdict() if m else "no score"
+            tag = "" if status == "ok" else f" [{status}]"
+            print(f"  {score_str}  {verdict:<18}  {slug}{tag}")
+
     return 0 if succeeded > 0 else 1
 
 

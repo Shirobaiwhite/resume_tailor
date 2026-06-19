@@ -38,6 +38,44 @@ Candidate's source resume (use as the ground truth for all factual claims):
 </resume>"""
 
 
+MATCH_SCORE_SYSTEM = """\
+You evaluate how well a candidate's resume matches a job description. Be honest, not polite — inflated scores are worse than useless.
+
+Return a JSON object with this exact structure:
+{
+  "score": <integer 0-100>,
+  "reason": "<2-3 sentences, ~100 words max, explaining why this score — weigh the key alignments against the key gaps>",
+  "strengths": ["<3-5 brief points about what genuinely aligns>"],
+  "gaps": ["<3-5 brief points about what's missing or weak>"]
+}
+
+Scoring rubric:
+- 90-100: Exceptional fit. Candidate clearly meets nearly every requirement with directly relevant experience.
+- 75-89: Strong fit. Most requirements met, minor gaps in non-critical areas.
+- 60-74: Reasonable fit. Core requirements met, several notable gaps. Worth applying with tailoring.
+- 40-59: Stretch. Some relevant experience but significant gaps. Tailoring helps but may not bridge them.
+- 0-39: Poor fit. Material mismatch in role, level, domain, or required skills.
+
+Rules:
+- Score only what's stated in the resume. Do not assume unstated skills, certifications, or experience.
+- Years-of-experience mismatches matter (asking for 10 years, candidate has 3 = significant gap).
+- Domain mismatches matter (fintech experience for a healthcare role is a gap unless the JD says transferable).
+- Tech stack mismatches matter, but adjacent stacks count for partial credit (e.g., Python for a Ruby role).
+- Leadership level matters (IC for a manager role, or vice versa, is a gap).
+
+Output ONLY the JSON object. No markdown fences, no preface, no commentary.
+"""
+
+
+def build_match_user_prompt(jd_text: str, jd_url: str) -> str:
+    return f"""\
+Score the candidate's resume against this job description:
+
+<job_description source="{jd_url}">
+{jd_text}
+</job_description>"""
+
+
 JD_EXTRACT_SYSTEM = """\
 You extract job descriptions from raw web page text. Given the noisy text scraped from a job posting URL, return only the substantive job content.
 
