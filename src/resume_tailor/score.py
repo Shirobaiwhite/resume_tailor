@@ -6,7 +6,16 @@ from dataclasses import dataclass, asdict
 from typing import List
 
 from .llm import LLMClient
-from .prompts import MATCH_SCORE_SYSTEM, build_match_user_prompt, build_resume_block
+from .prompts import (
+    SCORE_BANDS,
+    MATCH_SCORE_SYSTEM,
+    build_match_user_prompt,
+    build_resume_block,
+)
+
+# Below this score the match is a "Poor fit" — the minimum of the lowest
+# non-poor band. Used as the interactive bail-out threshold in the CLI.
+POOR_FIT_THRESHOLD = SCORE_BANDS[-2][0]
 
 
 @dataclass
@@ -17,15 +26,10 @@ class MatchScore:
     gaps: List[str]
 
     def verdict(self) -> str:
-        if self.score >= 90:
-            return "Exceptional fit"
-        if self.score >= 75:
-            return "Strong fit"
-        if self.score >= 60:
-            return "Reasonable fit"
-        if self.score >= 40:
-            return "Stretch"
-        return "Poor fit"
+        for minimum, label, _desc in SCORE_BANDS:
+            if self.score >= minimum:
+                return label
+        return SCORE_BANDS[-1][1]  # unreachable: lowest band starts at 0
 
     def to_dict(self) -> dict:
         return asdict(self)

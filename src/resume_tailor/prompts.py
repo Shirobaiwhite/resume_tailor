@@ -38,6 +38,30 @@ Candidate's source resume (use as the ground truth for all factual claims):
 </resume>"""
 
 
+# Single source of truth for the scoring bands. Each entry is
+# (minimum score for the band, short verdict label, rubric description).
+# Ordered best-to-worst; the last band must start at 0 so every score
+# maps to a verdict. Both the verdict logic (score.py) and the rubric
+# shown to the model (below) are derived from this list.
+SCORE_BANDS = [
+    (90, "Exceptional fit", "Candidate clearly meets nearly every requirement with directly relevant experience."),
+    (75, "Strong fit", "Most requirements met, minor gaps in non-critical areas."),
+    (60, "Reasonable fit", "Core requirements met, several notable gaps. Worth applying with tailoring."),
+    (40, "Stretch", "Some relevant experience but significant gaps. Tailoring helps but may not bridge them."),
+    (0, "Poor fit", "Material mismatch in role, level, domain, or required skills."),
+]
+
+
+def _format_rubric(bands) -> str:
+    """Render the score bands as '- <lo>-<hi>: <label>. <desc>' lines."""
+    lines = []
+    prev_min = 101  # so the top band's upper bound is 100
+    for minimum, label, desc in bands:
+        lines.append(f"- {minimum}-{prev_min - 1}: {label}. {desc}")
+        prev_min = minimum
+    return "\n".join(lines)
+
+
 MATCH_SCORE_SYSTEM = """\
 You evaluate how well a candidate's resume matches a job description. Be honest, not polite — inflated scores are worse than useless.
 
@@ -50,11 +74,7 @@ Return a JSON object with this exact structure:
 }
 
 Scoring rubric:
-- 90-100: Exceptional fit. Candidate clearly meets nearly every requirement with directly relevant experience.
-- 75-89: Strong fit. Most requirements met, minor gaps in non-critical areas.
-- 60-74: Reasonable fit. Core requirements met, several notable gaps. Worth applying with tailoring.
-- 40-59: Stretch. Some relevant experience but significant gaps. Tailoring helps but may not bridge them.
-- 0-39: Poor fit. Material mismatch in role, level, domain, or required skills.
+__RUBRIC__
 
 Rules:
 - Score only what's stated in the resume. Do not assume unstated skills, certifications, or experience.
@@ -64,7 +84,7 @@ Rules:
 - Leadership level matters (IC for a manager role, or vice versa, is a gap).
 
 Output ONLY the JSON object. No markdown fences, no preface, no commentary.
-"""
+""".replace("__RUBRIC__", _format_rubric(SCORE_BANDS))
 
 
 def build_match_user_prompt(jd_text: str, jd_url: str) -> str:

@@ -8,7 +8,7 @@ import json
 
 from .jd import fetch_jd
 from .latex import compile_tex, find_latex_compiler, offer_to_install_tectonic
-from .score import MatchScore, score_match
+from .score import MatchScore, POOR_FIT_THRESHOLD, score_match
 from .llm import DEFAULT_MODELS, KNOWN_BASE_URLS, ProviderConfig, build_client
 from .resume import load_resume
 from .storage import (
@@ -20,6 +20,12 @@ from .storage import (
     save_resume,
 )
 from .tailor import tailor_resume
+
+
+# Below this match score (0-100), prompt before paying for tailoring.
+# Defaults to the "Poor fit" boundary from the scoring bands; overridable
+# per-run with --min-score.
+DEFAULT_MIN_MATCH_SCORE = POOR_FIT_THRESHOLD
 
 
 def _print_match(match: MatchScore) -> None:
@@ -192,6 +198,11 @@ def main() -> int:
         "--no-pdf", action="store_true",
         help="Skip PDF compilation even if a LaTeX compiler is installed.",
     )
+    parser.add_argument(
+        "--min-score", type=int, default=DEFAULT_MIN_MATCH_SCORE, metavar="N",
+        help="Match score (0-100) below which to prompt before tailoring "
+        f"(default: {DEFAULT_MIN_MATCH_SCORE}).",
+    )
 
     llm = parser.add_argument_group("LLM backend")
     llm.add_argument(
@@ -361,7 +372,7 @@ def main() -> int:
         # On very poor matches, give the user an out before paying for tailoring.
         if (
             match is not None
-            and match.score < 40
+            and match.score < args.min_score
             and sys.stdin.isatty()
         ):
             print()
