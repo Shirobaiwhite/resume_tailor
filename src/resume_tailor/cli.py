@@ -47,6 +47,43 @@ def _print_match(match: MatchScore) -> None:
             print(f"    - {g}")
 
 
+def _compile_existing(out_dir: Path) -> int:
+    """Compile every resume.tex under out_dir to PDF. Returns an exit code."""
+    if not out_dir.is_dir():
+        print(f"No such directory: {out_dir}", file=sys.stderr)
+        return 1
+
+    tex_files = sorted(out_dir.glob("*/resume.tex")) + sorted(out_dir.glob("resume.tex"))
+    if not tex_files:
+        print(f"No resume.tex files found under {out_dir}/", file=sys.stderr)
+        return 1
+
+    compiler = find_latex_compiler()
+    if not compiler:
+        if sys.stdin.isatty():
+            compiler = offer_to_install_tectonic()
+        if not compiler:
+            print(
+                "No LaTeX compiler found on PATH. Install tectonic "
+                "(brew install tectonic) and try again.",
+                file=sys.stderr,
+            )
+            return 1
+    print(f"Found LaTeX compiler: {compiler}")
+    print(f"Compiling {len(tex_files)} .tex file(s) under {out_dir}/...")
+
+    compiled = 0
+    for tex_path in tex_files:
+        print(f"\n  {tex_path}")
+        pdf_path = compile_tex(tex_path, compiler)
+        if pdf_path:
+            print(f"  wrote {pdf_path}")
+            compiled += 1
+
+    print(f"\nDone. {compiled}/{len(tex_files)} compiled.")
+    return 0 if compiled > 0 else 1
+
+
 def _make_jd_confirmer():
     """Build a callback that previews extracted JD text and asks the user
     if it looks right. Used by fetch_jd() in interactive/TTY mode."""
@@ -199,6 +236,11 @@ def main() -> int:
         help="Skip PDF compilation even if a LaTeX compiler is installed.",
     )
     parser.add_argument(
+        "--compile-existing", action="store_true",
+        help="Compile every resume.tex already under --out to PDF, then exit. "
+        "No LLM call or API key needed.",
+    )
+    parser.add_argument(
         "--min-score", type=int, default=DEFAULT_MIN_MATCH_SCORE, metavar="N",
         help="Match score (0-100) below which to prompt before tailoring "
         f"(default: {DEFAULT_MIN_MATCH_SCORE}).",
@@ -268,6 +310,9 @@ def main() -> int:
         else:
             print("No LLM to clear.")
         return 0
+
+    if args.compile_existing:
+        return _compile_existing(args.out)
 
     # Bare invocation (no flags) → interactive walkthrough.
     interactive_mode = (

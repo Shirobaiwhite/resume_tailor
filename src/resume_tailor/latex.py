@@ -35,6 +35,9 @@ def _build_cmd(compiler: str, tex_path: Path, out_dir: Path) -> List[str]:
 
 def compile_tex(tex_path: Path, compiler: str) -> Optional[Path]:
     """Compile a .tex file to PDF in its parent directory. Returns the PDF path or None on failure."""
+    # Resolve to absolute paths: the compiler runs with cwd=out_dir, so a
+    # path relative to the repo root would not resolve from inside out_dir.
+    tex_path = tex_path.resolve()
     out_dir = tex_path.parent
     cmd = _build_cmd(compiler, tex_path, out_dir)
 
