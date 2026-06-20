@@ -8,7 +8,7 @@ import json
 
 from .jd import fetch_jd
 from .latex import compile_tex, find_latex_compiler, offer_to_install_tectonic
-from .score import MatchScore, POOR_FIT_THRESHOLD, score_match
+from .score import MatchScore, score_match
 from .llm import DEFAULT_MODELS, KNOWN_BASE_URLS, ProviderConfig, build_client
 from .resume import load_resume
 from .storage import (
@@ -22,10 +22,12 @@ from .storage import (
 from .tailor import tailor_resume
 
 
-# Below this match score (0-100), prompt before paying for tailoring.
-# Defaults to the "Poor fit" boundary from the scoring bands; overridable
-# per-run with --min-score.
-DEFAULT_MIN_MATCH_SCORE = POOR_FIT_THRESHOLD
+# Tailoring policy by match score (0-100), overridable with --min-score:
+#   score >= --min-score        -> tailor without asking
+#   SKIP_MATCH_SCORE..min-score -> ask "tailor anyway?" (interactive only)
+#   score <  SKIP_MATCH_SCORE   -> too weak to bother; skip without asking
+DEFAULT_MIN_MATCH_SCORE = 60  # the "Reasonable fit" floor in the scoring bands
+SKIP_MATCH_SCORE = 20
 
 
 def _print_match(match: MatchScore) -> None:
@@ -243,7 +245,8 @@ def main() -> int:
     parser.add_argument(
         "--min-score", type=int, default=DEFAULT_MIN_MATCH_SCORE, metavar="N",
         help="Match score (0-100) below which to prompt before tailoring "
-        f"(default: {DEFAULT_MIN_MATCH_SCORE}).",
+        f"(default: {DEFAULT_MIN_MATCH_SCORE}). Matches below "
+        f"{SKIP_MATCH_SCORE} are skipped without asking.",
     )
 
     llm = parser.add_argument_group("LLM backend")
@@ -414,7 +417,16 @@ def main() -> int:
         except Exception as e:
             print(f"  (couldn't compute match score: {e})", file=sys.stderr)
 
-        # On very poor matches, give the user an out before paying for tailoring.
+        # Very poor matches aren't worth tailoring — skip without asking.
+        if match is not None and match.score < SKIP_MATCH_SCORE:
+            print(
+                f"  Match is only {match.score}/100 ({match.verdict()}); "
+                "too weak to tailor. Skipping."
+            )
+            results.append((jd.slug, match, "skipped"))
+            continue
+
+        # Borderline matches: give the user an out before paying for tailoring.
         if (
             match is not None
             and match.score < args.min_score
