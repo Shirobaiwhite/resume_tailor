@@ -13,9 +13,18 @@ from .prompts import (
     build_resume_block,
 )
 
-# Below this score the match is a "Poor fit" — the minimum of the lowest
-# non-poor band. Used as the interactive bail-out threshold in the CLI.
-POOR_FIT_THRESHOLD = SCORE_BANDS[-2][0]
+# Tailoring policy thresholds (0-100). The CLI applies them as:
+#   score >= min-score (default below)  -> tailor without asking
+#   SKIP_MATCH_SCORE..min-score         -> ask "tailor anyway?" (interactive only)
+#   score <  SKIP_MATCH_SCORE           -> too weak to bother; skip without asking
+# The default floor is derived from the rubric bands so it tracks any band
+# changes; a renamed band fails loudly here at import time.
+DEFAULT_MIN_MATCH_SCORE = next(
+    minimum for minimum, label, _desc in SCORE_BANDS if label == "Reasonable fit"
+)
+# Deliberately deep inside the bottom "Poor fit" band: only matches the model
+# considers hopeless are skipped without asking.
+SKIP_MATCH_SCORE = 20
 
 
 @dataclass

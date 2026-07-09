@@ -8,7 +8,12 @@ import json
 
 from .jd import fetch_jd
 from .latex import compile_tex, find_latex_compiler, offer_to_install_tectonic
-from .score import MatchScore, score_match
+from .score import (
+    DEFAULT_MIN_MATCH_SCORE,
+    SKIP_MATCH_SCORE,
+    MatchScore,
+    score_match,
+)
 from .llm import DEFAULT_MODELS, KNOWN_BASE_URLS, ProviderConfig, build_client
 from .resume import load_resume
 from .storage import (
@@ -20,14 +25,6 @@ from .storage import (
     save_resume,
 )
 from .tailor import tailor_resume
-
-
-# Tailoring policy by match score (0-100), overridable with --min-score:
-#   score >= --min-score        -> tailor without asking
-#   SKIP_MATCH_SCORE..min-score -> ask "tailor anyway?" (interactive only)
-#   score <  SKIP_MATCH_SCORE   -> too weak to bother; skip without asking
-DEFAULT_MIN_MATCH_SCORE = 60  # the "Reasonable fit" floor in the scoring bands
-SKIP_MATCH_SCORE = 20
 
 
 def _print_match(match: MatchScore) -> None:

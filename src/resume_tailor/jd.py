@@ -1,9 +1,10 @@
+import hashlib
 import html
 import re
 import sys
 from dataclasses import dataclass
 from typing import Callable, List, Optional, Tuple
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -29,11 +30,39 @@ def _slugify(value: str) -> str:
     return value[:80] or "job"
 
 
+# Query params that identify a specific job on boards that put the job id in
+# the query string rather than the path (Greenhouse embeds, LinkedIn search).
+_JOB_ID_PARAMS = ("gh_jid", "currentjobid", "jobid", "job_id", "jid", "postingid")
+
+
+def _is_tracking_param(key: str) -> bool:
+    k = key.lower()
+    return k.startswith("utm_") or k in {"ref", "refid", "trackingid", "source", "src"}
+
+
 def _slug_from_url(url: str) -> str:
     parsed = urlparse(url)
     host = parsed.netloc.replace("www.", "")
     path = parsed.path.strip("/").replace("/", "-")
-    return _slugify(f"{host}-{path}") if path else _slugify(host)
+    slug = _slugify(f"{host}-{path}" if path else host)
+
+    # The job identity often lives in the query string (?gh_jid=..., LinkedIn's
+    # ?currentJobId=...); without it, different jobs on the same board collapse
+    # onto one slug and overwrite each other's output. Append the job-id param
+    # when we recognize one, else a short hash of the non-tracking params.
+    qs = {k.lower(): v for k, v in parse_qs(parsed.query).items()}
+    for param in _JOB_ID_PARAMS:
+        values = qs.get(param) or qs.get(f"{param}[]")
+        if values and values[0]:
+            return f"{slug}-{_slugify(values[0])}"
+
+    significant = {k: v for k, v in qs.items() if not _is_tracking_param(k)}
+    if significant:
+        digest = hashlib.sha1(
+            urlencode(sorted(significant.items()), doseq=True).encode()
+        ).hexdigest()[:8]
+        return f"{slug}-{digest}"
+    return slug
 
 
 def _fetch(url: str, ua: str = USER_AGENT, timeout: float = 20.0) -> Optional[str]:
